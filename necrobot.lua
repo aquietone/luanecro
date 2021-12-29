@@ -653,8 +653,8 @@ local function check_camp()
     end
 end
 
-local function set_camp()
-    if MODE == 'assist' and not CAMP then
+local function set_camp(reset)
+    if (MODE == 'assist' and not CAMP) or reset then
         CAMP = {
             ['X']=mq.TLO.Me.X(),
             ['Y']=mq.TLO.Me.Y(),
@@ -1099,6 +1099,7 @@ local function check_aggro()
                     mq.delay(500)
                     if safe_to_stand() then
                         mq.TLO.Me.Sit() -- Use a sit TLO to stand up, what wizardry is this?
+                        mq.cmd('/makemevis')
                     end
                 end
             elseif mq.TLO.Me.PctAggro() >= 70 then
@@ -1108,6 +1109,7 @@ local function check_aggro()
                     mq.delay(500)
                     if safe_to_stand() then
                         mq.TLO.Me.Sit() -- Use a sit TLO to stand up, what wizardry is this?
+                        mq.cmd('/makemevis')
                     end
                 end
             end
@@ -1115,20 +1117,24 @@ local function check_aggro()
     end
 end
 
+local rez_timer = 0
 local function check_rez()
     if not USE_REZ or am_i_dead() then return end
+    if os.difftime(os.time(os.date("!*t")), rez_timer) < 5 then return end
     if not mq.TLO.Me.AltAbilityReady(convergence['name'])() then return end
     if mq.TLO.FindItemCount('=Essence Emerald')() == 0 then return end
     if mq.TLO.SpawnCount('pccorpse group healer radius 100')() > 0 then
         local corpseid = mq.TLO.Spawn('pccorpse group healer radius 100').DoTarget()
         mq.cmd('/corpse')
-        cast(convergence['name'], true, false)
+        usa_aa(convergence['name'], convergence['id'])
+        rez_timer = os.time(os.date("!*t"))
         return
     end
     if mq.TLO.SpawnCount('pccorpse raid healer radius 100')() > 0 then
         local corpseid = mq.TLO.Spawn('pccorpse raid healer radius 100').DoTarget()
         mq.cmd('/corpse')
-        cast(convergence['name'], true, false)
+        usa_aa(convergence['name'], convergence['id'])
+        rez_timer = os.time(os.date("!*t"))
         return
     end
     if mq.TLO.Group.MainTank() and mq.TLO.Group.MainTank.Dead() then
@@ -1137,7 +1143,8 @@ local function check_rez()
         local corpse_y = mq.TLO.Target.Y()
         if corpse_x and corpse_y and check_distance(mq.TLO.Me.X(), mq.TLO.Me.Y(), corpse_x, corpse_y) > 100 then return end
         mq.cmd('/corpse')
-        cast(convergence['name'], true, false)
+        usa_aa(convergence['name'], convergence['id'])
+        rez_timer = os.time(os.date("!*t"))
         return
     end
     for i=1,5 do
@@ -1147,7 +1154,8 @@ local function check_rez()
             local corpse_y = mq.TLO.Target.Y()
             if corpse_x and corpse_y and check_distance(mq.TLO.Me.X(), mq.TLO.Me.Y(), corpse_x, corpse_y) < 100 then
                 mq.cmd('/corpse')
-                cast(convergence['name'], true, false)
+                usa_aa(convergence['name'], convergence['id'])
+                rez_timer = os.time(os.date("!*t"))
                 return
             end
         end
@@ -1645,16 +1653,18 @@ local function nec_bind(...)
     elseif args[1] == 'mode' then
         if args[2] == '0' then
             MODE = MODES[1]
+            set_camp()
         elseif args[2] == '1' then
             MODE = MODES[2]
             set_camp()
         elseif args[2] == '2' then
             MODE = MODES[3]
+            set_camp()
         end
     elseif args[1] == 'prep' then
         pre_pop_burns()
     elseif args[1] == 'resetcamp' then
-        set_camp()
+        set_camp(true)
     else
         -- some other argument, show or modify a setting
     end
@@ -1675,6 +1685,7 @@ mq.imgui.init('Necro Bot 1.0', necrobot_ui)
 load_settings()
 
 mq.TLO.Lua.Turbo(500)
+mq.cmd('/plugin melee unload noauto')
 get_necro_count()
 
 local debug_timer = 0
@@ -1723,6 +1734,7 @@ while true do
     elseif not PAUSED and (mq.TLO.Me.Invis() or mq.TLO.Me.Feigning()) then
         -- stay in camp or stay chasing chase target if not paused but invis
         if mq.TLO.Pet() and mq.TLO.Pet.Target() and mq.TLO.Pet.Target.ID() > 0 then mq.cmd('/pet back') end
+        if MODE == 'assist' and should_assist() then mq.cmd('/makemevis') end
         check_camp()
         check_chase()
         rest()
