@@ -134,6 +134,7 @@ local OPTS = {
     BYOS=false,
     USEWOUNDS=true,
     MULTIDOT=false,
+    MULTICOUNT=3,
 }
 local DEBUG=false
 local PAUSED=true -- controls the main combat loop
@@ -859,32 +860,37 @@ end
 
 local function cycle_dots()
     --if is_fighting() or (not OPTS.MULTIDOT and should_assist()) then
-    if is_fighting() or should_assist() then
+    if not mq.TLO.Me.SpellInCooldown() and (is_fighting() or should_assist()) then
         local spell = find_next_dot_to_cast() -- find the first available dot to cast that is missing from the target
         if spell then -- if a dot was found
             cast(spell['name'], true, true) -- then cast the dot
-            if OPTS.MULTIDOT then
-                local assist_target_id = mq.TLO.Target.ID()
-                local dotted_count = 1
-                for i=1,13 do
-                    if mq.TLO.Me.XTarget(i).TargetType() == 'Auto Hater' and mq.TLO.Me.XTarget(i).Type() == 'NPC' then
-                        local xtar_id = mq.TLO.Me.XTarget(i).ID()
-                        local xtar_spawn = mq.TLO.Spawn(xtar_id)
-                        if xtar_id ~= assist_target_id and should_assist(xtar_spawn) then
-                            xtar_spawn.DoTarget()
-                            mq.delay(2000, function() return mq.TLO.Target.ID() == xtar_id and not mq.TLO.Me.SpellInCooldown() end)
-                            if not mq.TLO.Me.SpellReady(spell['name'])() then break end
-                            if not mq.TLO.Target.Mezzed() then
-                                cast(spell['name'], true, true)
-                                dotted_count = dotted_count + 1
-                            end
+        end
+        if OPTS.MULTIDOT then
+            local original_target_id = 0
+            if mq.TLO.Target.Type() == 'NPC' then original_target_id = mq.TLO.Target.ID() end
+            local dotted_count = 1
+            for i=1,13 do
+                if mq.TLO.Me.XTarget(i).TargetType() == 'Auto Hater' and mq.TLO.Me.XTarget(i).Type() == 'NPC' then
+                    local xtar_id = mq.TLO.Me.XTarget(i).ID()
+                    local xtar_spawn = mq.TLO.Spawn(xtar_id)
+                    if xtar_id ~= original_target_id and should_assist(xtar_spawn) then
+                        xtar_spawn.DoTarget()
+                        mq.delay(2000, function() return mq.TLO.Target.ID() == xtar_id and not mq.TLO.Me.SpellInCooldown() end)
+                        local spell = find_next_dot_to_cast() -- find the first available dot to cast that is missing from the target
+                        if spell and not mq.TLO.Target.Mezzed() then -- if a dot was found
+                            --if not mq.TLO.Me.SpellReady(spell['name'])() then break end
+                            cast(spell['name'], true, true)
+                            dotted_count = dotted_count + 1
+                            if dotted_count >= OPTS.MULTICOUNT then break end
                         end
                     end
-                    if dotted_count >= 5 then break end
                 end
             end
-            return true
+            if original_target_id ~= 0 and mq.TLO.Target.ID() ~= original_target_id then
+                mq.cmdf('/mqtar id %s', original_target_id)
+            end
         end
+        return true
     end
     return false
 end
@@ -1303,7 +1309,7 @@ local function should_swap_dots()
     local pyrelongDuration = mq.TLO.Target.MyBuffDuration(spells['pyrelong']['name'])()
     local fireshadowDuration = mq.TLO.Target.MyBuffDuration(spells['fireshadow']['name'])()
     if mq.TLO.Me.Gem(spells['wounds']['name'])() then
-        if woundsDuration and woundsDuration > 20000 then
+        if not OPTS.USEWOUNDS or (woundsDuration and woundsDuration > 20000) then
             if not pyrelongDuration or pyrelongDuration < 20000 then
                 swap_spell(spells['pyrelong']['name'], swap_gem or 10)
             elseif not fireshadowDuration or fireshadowDuration < 20000 then
@@ -1312,7 +1318,7 @@ local function should_swap_dots()
         end
     elseif mq.TLO.Me.Gem(spells['pyrelong']['name'])() then
         if pyrelongDuration and pyrelongDuration > 20000 then
-            if not woundsDuration or woundsDuration < 20000 then
+            if OPTS.USEWOUNDS and (not woundsDuration or woundsDuration < 20000) then
                 swap_spell(spells['wounds']['name'], swap_gem or 10)
             elseif not fireshadowDuration or fireshadowDuration < 20000 then
                 swap_spell(spells['fireshadow']['name'], swap_gem or 10)
@@ -1320,7 +1326,7 @@ local function should_swap_dots()
         end
     elseif mq.TLO.Me.Gem(spells['fireshadow']['name'])() then
         if fireshadowDuration and fireshadowDuration > 20000 then
-            if not woundsDuration or woundsDuration < 20000 then
+            if OPTS.USEWOUNDS and (not woundsDuration or woundsDuration < 20000) then
                 swap_spell(spells['wounds']['name'], swap_gem or 10)
             elseif not pyrelongDuration or pyrelongDuration < 20000 then
                 swap_spell(spells['pyrelong']['name'], swap_gem or 10)
@@ -1363,7 +1369,7 @@ local function check_spell_set()
             if mq.TLO.Me.Gem(5)() ~= spells['haze']['name'] then swap_spell(spells['haze']['name'], 5) end
             if mq.TLO.Me.Gem(6)() ~= spells['grasp']['name'] then swap_spell(spells['grasp']['name'], 6) end
             if mq.TLO.Me.Gem(7)() ~= spells['leech']['name'] then swap_spell(spells['leech']['name'], 7) end
-            if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(spells['wounds']['name'], 10) end
+            --if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(spells['wounds']['name'], 10) end
             if mq.TLO.Me.Gem(11)() ~= spells['decay']['name'] then swap_spell(spells['decay']['name'], 11) end
             if mq.TLO.Me.Gem(13)() ~= spells['synergy']['name'] then swap_spell(spells['synergy']['name'], 13) end
             SPELLSET_LOADED = OPTS.SPELLSET
@@ -1417,6 +1423,11 @@ local function check_spell_set()
             if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
             if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
             if mq.TLO.Me.Gem(12)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 12) end
+        end
+        if not OPTS.USEWOUNDS then
+            if mq.TLO.Me.Gem(10)() ~= spells['pyrelong']['name'] then swap_spell(spells['pyrelong']['name'], 10) end
+        else
+            if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(spells['wounds']['name'], 10) end
         end
     elseif OPTS.SPELLSET == 'short' then
         if OPTS.USEMANATAP and OPTS.USEALLIANCE and OPTS.USEINSPIRE then
@@ -1565,6 +1576,7 @@ local function draw_left_pane_window()
         OPTS.BURNPCT = draw_input_int('Burn Percent', '##burnpct', OPTS.BURNPCT, 'Percent health to begin burns')
         OPTS.BURNCOUNT = draw_input_int('Burn Count', '##burncnt', OPTS.BURNCOUNT, 'Trigger burns if this many mobs are on aggro')
         OPTS.STOPPCT = draw_input_int('Stop Percent', '##stoppct', OPTS.STOPPCT, 'Percent HP to stop dotting')
+        OPTS.MULTICOUNT = draw_input_int('Multi DoT #', '##multidotnum', OPTS.MULTICOUNT, 'Number of mobs to rotate through when multi-dot is enabled')
     end
     ImGui.EndChild()
 end
