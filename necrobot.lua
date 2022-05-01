@@ -131,6 +131,7 @@ local OPTS = {
     USEREZ=true,
     USEFD=true,
     USEINSPIRE=true,
+    USEDISPEL=true,
     BYOS=false,
     USEWOUNDS=true,
     MULTIDOT=false,
@@ -304,6 +305,7 @@ local deathpeace = get_aaid_and_name('Death Peace')
 local deathseffigy = get_aaid_and_name('Death\'s Effigy')
 
 local convergence = get_aaid_and_name('Convergence')
+local dispel = get_aaid_and_name('Eradicate Magic')
 
 local buffs={
     ['self']={},
@@ -523,6 +525,7 @@ local function load_settings()
     if settings['USEMANATAP'] ~= nil then OPTS.USEMANATAP = settings['USEMANATAP'] end
     if settings['USEFD'] ~= nil then OPTS.USEFD = settings['USEFD'] end
     if settings['USEINSPIRE'] ~= nil then OPTS.USEINSPIRE = settings['USEINSPIRE'] end
+    if settings['USEDISPEL'] ~= nil then OPTS.USEDISPEL = settings['USEDISPEL'] end
     if settings['USEREZ'] ~= nil then OPTS.USEREZ = settings['USEREZ'] end
     if settings['USEWOUNDS'] ~= nil then OPTS.USEWOUNDS = settings['USEWOUNDS'] end
     if settings['MULTIDOT'] ~= nil then OPTS.MULTIDOT = settings['MULTIDOT'] end
@@ -879,9 +882,25 @@ local function use_item(item)
     end
 end
 
+local function use_aa(aa, number)
+    if not mq.TLO.Me.Song(aa)() and not mq.TLO.Me.Buff(aa)() and mq.TLO.Me.AltAbilityReady(aa)() and can_cast_weave() then
+        if mq.TLO.Me.AltAbility(aa).Spell.TargetType() == 'Single' and not mq.TLO.Target() then return end
+        if mq.TLO.Me.AltAbility(aa).Spell.TargetType() == 'Pet' and mq.TLO.Pet.ID() == 0 then return end
+        if can_cast_weave() then
+            printf('use_aa: \ax\ar%s\ax', aa)
+            mq.cmdf('/alt activate %d', number)
+        end
+        mq.delay(300+mq.TLO.Me.AltAbility(aa).Spell.CastTime()) -- wait for cast time + some buffer so we don't skip over stuff
+        -- alternatively maybe while loop until we see the buff or song is applied, but not all apply a buff or song, like pet stuff
+    end
+end
+
 local function cycle_dots()
     --if is_fighting() or (not OPTS.MULTIDOT and should_assist()) then
     if not mq.TLO.Me.SpellInCooldown() and (is_fighting() or should_assist()) then
+        if OPTS.USEDISPEL and mq.TLO.Target.Beneficial() then
+            use_aa(dispel['name'], dispel['id'])
+        end
         local spell = find_next_dot_to_cast() -- find the first available dot to cast that is missing from the target
         if spell then -- if a dot was found
             if spell['name'] == spells['pyreshort']['name'] and not mq.TLO.Me.Buff('Heretic\'s Twincast')() then
@@ -967,19 +986,6 @@ local function check_los()
         if not mq.TLO.Target.LineOfSight() and not mq.TLO.Navigation.Active() then
             mq.cmd('/nav target log=off')
         end
-    end
-end
-
-local function use_aa(aa, number)
-    if not mq.TLO.Me.Song(aa)() and not mq.TLO.Me.Buff(aa)() and mq.TLO.Me.AltAbilityReady(aa)() and can_cast_weave() then
-        if mq.TLO.Me.AltAbility(aa).Spell.TargetType() == 'Single' and not mq.TLO.Target() then return end
-        if mq.TLO.Me.AltAbility(aa).Spell.TargetType() == 'Pet' and mq.TLO.Pet.ID() == 0 then return end
-        if can_cast_weave() then
-            printf('use_aa: \ax\ar%s\ax', aa)
-            mq.cmdf('/alt activate %d', number)
-        end
-        mq.delay(300+mq.TLO.Me.AltAbility(aa).Spell.CastTime()) -- wait for cast time + some buffer so we don't skip over stuff
-        -- alternatively maybe while loop until we see the buff or song is applied, but not all apply a buff or song, like pet stuff
     end
 end
 
@@ -1632,6 +1638,7 @@ local function draw_right_pane_window()
         OPTS.USEFD = draw_check_box('Feign Death', '##dofeign', OPTS.USEFD, 'Use FD AA\'s to reduce aggro')
         OPTS.USEREZ = draw_check_box('Use Rez', '##userez', OPTS.USEREZ, 'Use Convergence AA to rez group members')
         OPTS.USEINSPIRE = draw_check_box('Inspire Ally', '##inspire', OPTS.USEINSPIRE, 'Use Inspire Ally pet buff')
+        OPTS.USEDISPEL = draw_check_box('Use Dispel', '##dispel', OPTS.USEDISPEL, 'Dispel mobs with Eradicate Magic AA')
         OPTS.USEWOUNDS = draw_check_box('Use Wounds', '##usewounds', OPTS.USEWOUNDS, 'Use wounds DoT')
         OPTS.MULTIDOT = draw_check_box('Multi DoT', '##multidot', OPTS.MULTIDOT, 'DoT all mobs')
         OPTS.USEGLYPH = draw_check_box('Use Glyph', '##glyph', OPTS.USEGLYPH, 'Use Glyph of Destruction on Burn')
