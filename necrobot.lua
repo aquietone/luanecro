@@ -135,6 +135,8 @@ local OPTS = {
     USEWOUNDS=true,
     MULTIDOT=false,
     MULTICOUNT=3,
+    USEGLYPH=false,
+    USEINTENSITY=false,
 }
 local DEBUG=false
 local PAUSED=true -- controls the main combat loop
@@ -277,8 +279,8 @@ table.insert(AAs, get_aaid_and_name('Swarm of Decay')) -- 9 minute CD
 --table.insert(AAs, get_aaid_and_name('Life Burn')) -- 20 minute CD
 --table.insert(AAs, get_aaid_and_name('Dying Grasp')) -- 20 minute CD
 
---table.insert(AAs, get_aaid_and_name('Glyph of Destruction (115+)'))
---table.insert(AAs, get_aaid_and_name('Intensity of the Resolute'))
+local glyph = get_aaid_and_name('Mythic Glyph of Ultimate Power V')
+local intensity = get_aaid_and_name('Intensity of the Resolute')
 
 local pre_burn_AAs = {}
 table.insert(pre_burn_AAs, get_aaid_and_name('Focus of Arcanum')) -- buff
@@ -525,6 +527,8 @@ local function load_settings()
     if settings['USEWOUNDS'] ~= nil then OPTS.USEWOUNDS = settings['USEWOUNDS'] end
     if settings['MULTIDOT'] ~= nil then OPTS.MULTIDOT = settings['MULTIDOT'] end
     if settings['MULTICOUNT'] ~= nil then OPTS.MULTICOUNT = settings['MULTICOUNT'] end
+    if settings['USEGLYPH'] ~= nil then OPTS.USEGLYPH = settings['USEGLYPH'] end
+    if settings['USEINTENSITY'] ~= nil then OPTS.USEINTENSITY = settings['USEINTENSITY'] end
 end
 
 local function save_settings()
@@ -864,7 +868,7 @@ local function find_next_dot_to_cast()
 end
 
 local function use_item(item)
-    if item.Timer() == '0' then
+    if item() and item.Clicky.Spell() and item.Timer() == '0' then
         if item.Clicky.Spell.TargetType() == 'Single' and not mq.TLO.Target() then return end
         if can_cast_weave() then
             printf('use_item: \ax\ar%s\ax', item)
@@ -1090,6 +1094,16 @@ local function try_burn()
                 use_aa(aa['name'], aa['id'])
             end
         end
+        if OPTS.USEGLYPH then
+            if not mq.TLO.Me.Song(intensity['name'])() and mq.TLO.Me.Buff('heretic\'s twincast')() then
+                use_aa(glyph['name'], glyph['id'])
+            end
+        end
+        if OPTS.USEINTENSITY then
+            if not mq.TLO.Me.Buff(glyph['name'])() and mq.TLO.Me.Buff('heretic\'s twincast')() then
+                use_aa(intensity['name'], intensity['id'])
+            end
+        end
 
         if mq.TLO.Me.PctHPs() > 90 and mq.TLO.Me.AltAbilityReady('Life Burn')() and mq.TLO.Me.AltAbilityReady('Dying Grasp')() then
             use_aa(lifeburn['name'], lifeburn['id'])
@@ -1120,6 +1134,12 @@ local function pre_pop_burns()
 
     for _,aa in ipairs(pre_burn_AAs) do
         use_aa(aa['name'], aa['id'])
+    end
+
+    if OPTS.USEGLYPH then
+        if not mq.TLO.Me.Song(intensity['name'])() and mq.TLO.Me.Buff('heretic\'s twincast')() then
+            use_aa(glyph['name'], glyph['id'])
+        end
     end
 end
 
@@ -1263,6 +1283,9 @@ end
 
 local function check_buffs()
     if am_i_dead() or mq.TLO.Me.Moving() then return end
+    if not mq.TLO.Me.Buff('Geomantra')() then
+        use_item(mq.TLO.InvSlot('Charm').Item)
+    end
     if OPTS.USEBUFFSHIELD then
         if not mq.TLO.Me.Buff(spells['shield']['name'])() and mq.TLO.Me.SpellReady(spells['shield']['name'])() and mq.TLO.Spell(spells['shield']['name']).Mana() < mq.TLO.Me.CurrentMana() then
             cast(spells['shield']['name'])
@@ -1611,6 +1634,8 @@ local function draw_right_pane_window()
         OPTS.USEINSPIRE = draw_check_box('Inspire Ally', '##inspire', OPTS.USEINSPIRE, 'Use Inspire Ally pet buff')
         OPTS.USEWOUNDS = draw_check_box('Use Wounds', '##usewounds', OPTS.USEWOUNDS, 'Use wounds DoT')
         OPTS.MULTIDOT = draw_check_box('Multi DoT', '##multidot', OPTS.MULTIDOT, 'DoT all mobs')
+        OPTS.USEGLYPH = draw_check_box('Use Glyph', '##glyph', OPTS.USEGLYPH, 'Use Glyph of Destruction on Burn')
+        OPTS.USEINTENSITY = draw_check_box('Use Intensity', '##intensity', OPTS.USEINTENSITY, 'Use Intensity of the Resolute on Burn')
     end
     ImGui.EndChild()
 end
