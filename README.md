@@ -12,7 +12,7 @@ The script is designed to be compatible with CWTN class plugins as its what I us
 Place the script in your MQ Lua folder.
 
 ## Usage
-Start the script with `/lua run necrobot`.
+Start the script with `/lua run luanecro`.
 
 ## Support
 Open issues [here](https://gitlab.com/aquietone/luanecro/-/issues).
