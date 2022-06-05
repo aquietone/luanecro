@@ -15,7 +15,7 @@ Place the script in your MQ Lua folder.
 Start the script with `/lua run necrobot`.
 
 ## Support
-Open issues (https://gitlab.com/aquietone/luanecro/-/issues)[here].
+Open issues [here](https://gitlab.com/aquietone/luanecro/-/issues).
 
 ## Roadmap
-Just a random project, don't really have any plans for it, beyond supporting my own needs. If you found your way here, look at aqobot instead.
+Just a random project, don't really have any plans for it, beyond supporting my own needs. If you found your way here, look at [aqobot](https://gitlab.com/aquietone/aqobot) instead.
