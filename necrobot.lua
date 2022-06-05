@@ -243,8 +243,10 @@ local items = {}
 table.insert(items, mq.TLO.FindItem('Blightbringer\'s Tunic of the Grave').ID()) -- buff, 5 minute CD
 table.insert(items, mq.TLO.InvSlot('Chest').Item.ID()) -- buff, Consuming Magic, 10 minute CD
 table.insert(items, mq.TLO.FindItem('Rage of Rolfron').ID()) -- song, 30 minute CD
+table.insert(items, mq.TLO.FindItem('Vicious Rabbit').ID()) -- 5 minute CD
 
---table.insert(items, mq.TLO.FindItem('Bifold Focus of the Evil Eye').ID())
+local tcclickid = mq.TLO.FindItem('Bifold Focus of the Evil Eye').ID()
+
 --table.insert(items, mq.TLO.FindItem('Necromantic Fingerbone').ID()) -- 3 minute CD
 --table.insert(items, mq.TLO.FindItem('Amulet of the Drowned Mariner').ID()) -- 5 minute CD
 
@@ -522,6 +524,7 @@ local function load_settings()
     if settings['USEREZ'] ~= nil then OPTS.USEREZ = settings['USEREZ'] end
     if settings['USEWOUNDS'] ~= nil then OPTS.USEWOUNDS = settings['USEWOUNDS'] end
     if settings['MULTIDOT'] ~= nil then OPTS.MULTIDOT = settings['MULTIDOT'] end
+    if settings['MULTICOUNT'] ~= nil then OPTS.MULTICOUNT = settings['MULTICOUNT'] end
 end
 
 local function save_settings()
@@ -682,7 +685,6 @@ end
 local function check_target()
     if am_i_dead() then return end
     if OPTS.MODE ~= 'manual' or OPTS.SWITCHWITHMA then
-        if not mq.TLO.Group.MainAssist() then return end
         local assist_target = get_assist_spawn()
         if not assist_target() then return end
         if mq.TLO.Target() and mq.TLO.Target.Type() == 'NPC' and assist_target.ID() == mq.TLO.Group.MainAssist.ID() then
@@ -833,6 +835,9 @@ local function find_next_dot_to_cast()
     if OPTS.SPELLSET == 'short' and mq.TLO.Me.SpellReady(spells['swarm']['name'])() and mq.TLO.Spell(spells['swarm']['name']).Mana() < mq.TLO.Me.CurrentMana() then
         return spells['swarm']
     end
+    if mq.TLO.Me.PctMana() < 40 and mq.TLO.Me.SpellReady(spells['manatap']['name'])() and mq.TLO.Spell(spells['manatap']['name']).Mana() < mq.TLO.Me.CurrentMana() then
+        return spells['manatap']
+    end
     local pct_hp = mq.TLO.Target.PctHPs()
     if pct_hp and pct_hp > OPTS.STOPPCT then
         for _,dot in ipairs(dots[OPTS.SPELLSET]) do -- iterates over the dots array. ipairs(dots) returns 2 values, an index and its value in the array. we don't care about the index, we just want the dot
@@ -849,7 +854,7 @@ local function find_next_dot_to_cast()
             end
         end
     end
-    if OPTS.SPELLSET == 'short' and mq.TLO.Me.SpellReady(spells['manatap']['name'])() and mq.TLO.Spell(spells['manatap']['name']).Mana() < mq.TLO.Me.CurrentMana() then
+    if mq.TLO.Me.SpellReady(spells['manatap']['name'])() and mq.TLO.Spell(spells['manatap']['name']).Mana() < mq.TLO.Me.CurrentMana() then
         return spells['manatap']
     end
     if OPTS.SPELLSET == 'short' and mq.TLO.Me.SpellReady(spells['venin']['name'])() and mq.TLO.Spell(spells['venin']['name']).Mana() < mq.TLO.Me.CurrentMana() then
@@ -858,11 +863,27 @@ local function find_next_dot_to_cast()
     return nil -- we found no missing dot that was ready to cast, so return nothing
 end
 
+local function use_item(item)
+    if item.Timer() == '0' then
+        if item.Clicky.Spell.TargetType() == 'Single' and not mq.TLO.Target() then return end
+        if can_cast_weave() then
+            printf('use_item: \ax\ar%s\ax', item)
+            mq.cmdf('/useitem "%s"', item)
+        end
+        mq.delay(300+item.CastTime()) -- wait for cast time + some buffer so we don't skip over stuff
+        -- alternatively maybe while loop until we see the buff or song is applied
+    end
+end
+
 local function cycle_dots()
     --if is_fighting() or (not OPTS.MULTIDOT and should_assist()) then
     if not mq.TLO.Me.SpellInCooldown() and (is_fighting() or should_assist()) then
         local spell = find_next_dot_to_cast() -- find the first available dot to cast that is missing from the target
         if spell then -- if a dot was found
+            if spell['name'] == spells['pyreshort']['name'] and not mq.TLO.Me.Buff('Heretic\'s Twincast')() then
+                local tcclick = mq.TLO.FindItem(tcclickid)
+                use_item(tcclick)
+            end
             cast(spell['name'], true, true) -- then cast the dot
         end
         if OPTS.MULTIDOT then
@@ -942,18 +963,6 @@ local function check_los()
         if not mq.TLO.Target.LineOfSight() and not mq.TLO.Navigation.Active() then
             mq.cmd('/nav target log=off')
         end
-    end
-end
-
-local function use_item(item)
-    if item.Timer() == '0' then
-        if item.Clicky.Spell.TargetType() == 'Single' and not mq.TLO.Target() then return end
-        if can_cast_weave() then
-            printf('use_item: \ax\ar%s\ax', item)
-            mq.cmdf('/useitem "%s"', item)
-        end
-        mq.delay(300+item.CastTime()) -- wait for cast time + some buffer so we don't skip over stuff
-        -- alternatively maybe while loop until we see the buff or song is applied
     end
 end
 
@@ -1117,7 +1126,7 @@ end
 local function check_mana()
     -- modrods
     local pct_mana = mq.TLO.Me.PctMana()
-    if pct_mana < 75 then
+    if pct_mana < 90 then
         -- Find ModRods in check_mana since they poof when out of charges, can't just find once at startup.
         local item_aa_modrod = mq.TLO.FindItem('Summoned: Dazzling Modulation Shard') or mq.TLO.FindItem('Summoned: Radiant Modulation Shard')
         use_item(item_aa_modrod)
@@ -1126,12 +1135,12 @@ local function check_mana()
         local item_wand_old = mq.TLO.FindItem('Wand of Phantasmal Transvergence')
         use_item(item_wand_old)
     end
-    if pct_mana < 65 then
+    if pct_mana < 89 then
         -- death bloom at some %
         use_aa(deathbloom['name'], deathbloom['id'])
     end
     if is_fighting() then
-        if pct_mana < 40 then
+        if pct_mana < 70 then
             -- blood magic at some %
             use_aa(bloodmagic['name'], bloodmagic['id'])
         end
@@ -1140,6 +1149,9 @@ local function check_mana()
 end
 
 local function safe_to_stand()
+    if mq.TLO.Raid.Members() > 0 and mq.TLO.SpawnCount('pc raid tank radius 300')() > 2 then
+        return true
+    end
     if mq.TLO.Group.MainTank() then
         if not mq.TLO.Group.MainTank.Dead() then
             return true
@@ -1803,11 +1815,16 @@ mq.cmd('/plugin melee unload noauto')
 get_necro_count()
 
 local debug_timer = 0
+local nec_count_timer = 0
 -- Main Loop
 while true do
     if DEBUG and os.difftime(os.time(os.date("!*t")), debug_timer) > 3 then
         debug('main loop: PAUSED=%s, Me.Invis=%s', PAUSED, mq.TLO.Me.Invis())
         debug_timer = os.time(os.date("!*t"))
+    end
+    if OPTS.USEALLIANCE and os.difftime(os.time(os.date("!*t")), nec_count_timer) > 60 then
+        get_necro_count()
+        nec_count_timer = os.time(os.date("!*t"))
     end
     -- Process death events
     mq.doevents()
@@ -1829,7 +1846,7 @@ while true do
         --if OPTS.MULTIDOT then
         --    check_target_multi()
         --else
-            check_target()
+        check_target()
         --end
         -- if we should be assisting but aren't in los, try to be?
         check_los()
