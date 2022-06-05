@@ -1126,14 +1126,14 @@ local function check_rez()
     if mq.TLO.SpawnCount('pccorpse group healer radius 100')() > 0 then
         local corpseid = mq.TLO.Spawn('pccorpse group healer radius 100').DoTarget()
         mq.cmd('/corpse')
-        usa_aa(convergence['name'], convergence['id'])
+        use_aa(convergence['name'], convergence['id'])
         rez_timer = os.time(os.date("!*t"))
         return
     end
     if mq.TLO.SpawnCount('pccorpse raid healer radius 100')() > 0 then
         local corpseid = mq.TLO.Spawn('pccorpse raid healer radius 100').DoTarget()
         mq.cmd('/corpse')
-        usa_aa(convergence['name'], convergence['id'])
+        use_aa(convergence['name'], convergence['id'])
         rez_timer = os.time(os.date("!*t"))
         return
     end
@@ -1143,7 +1143,7 @@ local function check_rez()
         local corpse_y = mq.TLO.Target.Y()
         if corpse_x and corpse_y and check_distance(mq.TLO.Me.X(), mq.TLO.Me.Y(), corpse_x, corpse_y) > 100 then return end
         mq.cmd('/corpse')
-        usa_aa(convergence['name'], convergence['id'])
+        use_aa(convergence['name'], convergence['id'])
         rez_timer = os.time(os.date("!*t"))
         return
     end
@@ -1154,7 +1154,7 @@ local function check_rez()
             local corpse_y = mq.TLO.Target.Y()
             if corpse_x and corpse_y and check_distance(mq.TLO.Me.X(), mq.TLO.Me.Y(), corpse_x, corpse_y) < 100 then
                 mq.cmd('/corpse')
-                usa_aa(convergence['name'], convergence['id'])
+                use_aa(convergence['name'], convergence['id'])
                 rez_timer = os.time(os.date("!*t"))
                 return
             end
