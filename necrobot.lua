@@ -132,6 +132,8 @@ local OPTS = {
     USEFD=true,
     USEINSPIRE=true,
     BYOS=false,
+    USEWOUNDS=true,
+    MULTIDOT=false,
 }
 local DEBUG=false
 local PAUSED=true -- controls the main combat loop
@@ -139,6 +141,8 @@ local BURN_NOW = false -- toggled by /burnnow binding to burn immediately
 local CAMP = nil
 local SPELLSET_LOADED = nil
 local I_AM_DEAD = false
+
+local DOT_TARGETS = {}
 
 local LOG_PREFIX = '\a-t[\ax\ayNecroBot\ax\a-t]\ax '
 local function printf(...)
@@ -515,6 +519,8 @@ local function load_settings()
     if settings['USEFD'] ~= nil then OPTS.USEFD = settings['USEFD'] end
     if settings['USEINSPIRE'] ~= nil then OPTS.USEINSPIRE = settings['USEINSPIRE'] end
     if settings['USEREZ'] ~= nil then OPTS.USEREZ = settings['USEREZ'] end
+    if settings['USEWOUNDS'] ~= nil then OPTS.USEWOUNDS = settings['USEWOUNDS'] end
+    if settings['MULTIDOT'] ~= nil then OPTS.MULTIDOT = settings['MULTIDOT'] end
 end
 
 local function save_settings()
@@ -692,6 +698,73 @@ local function check_target()
     end
 end
 
+local function check_target_multi()
+    if am_i_dead() then return end
+    if OPTS.MODE ~= 'manual' then
+        local most_dots = 100
+        for _,details in pairs(DOT_TARGETS) do
+            if details.dots > most_dots then
+                most_dots = details.dots
+            end
+        end
+        for i=1,13 do
+            if mq.TLO.Me.XTarget(i).TargetType() == 'Auto Hater' and mq.TLO.Me.XTarget(i).Type() == 'NPC' then
+                local xtar_id = mq.TLO.Me.XTarget(i).ID()
+                local xtar_spawn = mq.TLO.Spawn(xtar_id)
+                local xtar_hp = xtar_spawn.PctHPs()
+                if xtar_spawn and xtar_hp and xtar_hp <= OPTS.AUTOASSISTAT then
+                    if DOT_TARGETS[xtar_id] then
+                        -- this xtarget is already being tracked
+                        if DOT_TARGETS[xtar_id].mezzed and os.difftime(os.time(os.date("!*t")), DOT_TARGETS[xtar_id].mezzed) > 10 then
+                            -- this xtarget is mezzed, so check timer to see if we should re-check it
+                            mq.cmdf('/mqtar %s', xtar_id)
+                            mq.delay(500, function() return mq.TLO.Target.ID() == xtar_id end)
+                            if mq.TLO.Target.Mezzed() then
+                                -- target still mezzed, reset timer
+                                DOT_TARGETS[xtar_id].mezzed = os.time(os.date("!*t"))
+                            else
+                                -- targets no longer mezzed, maybe can dps it now
+                                DOT_TARGETS[xtar_id].mezzed = nil
+                                if should_assist(mq.TLO.Target) then
+                                    return
+                                end
+                            end
+                        elseif should_assist(mq.TLO.Spawn(xtar_id)) and DOT_TARGETS[xtar_id].dots < most_dots then
+                            -- this xtarget is not mezzed, is it due for dotting?
+                            mq.cmdf('/mqtar %s', xtar_id)
+                            mq.delay(500, function() return mq.TLO.Target.ID() == xtar_id end)
+                            return
+                        end
+                    else
+                        -- this xtarget isn't being tracked yet. check if its mezzed or can be attacked
+                        mq.cmdf('/mqtar %s', xtar_id)
+                        mq.delay(500, function() return mq.TLO.Target.ID() == xtar_id end)
+                        local target = mq.TLO.Target
+                        if should_assist(target) then
+                            DOT_TARGETS[xtar_id] = {dots=0}
+                            if target.Mezzed() then
+                                DOT_TARGETS[xtar_id].mezzed = os.time(os.date("!*t"))
+                            else
+                                -- acquired a new xtarget we can dot
+                                return
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function prune_dot_targets()
+    for id,details in pairs(DOT_TARGETS) do
+        local spawn = mq.TLO.Spawn(id)
+        if not spawn() or spawn.Type() ~= 'NPC' then
+            DOT_TARGETS[id] = nil
+        end
+    end
+end
+
 local function in_control()
     return not mq.TLO.Me.Moving() and not mq.TLO.Me.Stunned() and not mq.TLO.Me.Silenced() and not mq.TLO.Me.Feigning() and not mq.TLO.Me.Mezzed() and not mq.TLO.Me.Invulnerable() and not mq.TLO.Me.Hovering()
 end
@@ -712,6 +785,10 @@ local function cast(spell_name, requires_target, requires_los)
         end
         mq.delay(10)
     end
+    --local id = mq.TLO.Target.ID()
+    --if id and id > 0 then
+    --    DOT_TARGETS[id].dots = DOT_TARGETS[id].dots + 1
+    --end
 end
 
 -- Casts alliance if we are fighting, alliance is enabled, the spell is ready, alliance isn't already on the mob, there is > 1 necro in group or raid, and we have at least a few dots on the mob.
@@ -766,7 +843,7 @@ local function find_next_dot_to_cast()
             --         return dot
             --     end
             -- else
-            if is_dot_ready(spell_id, spell_name) then
+            if (OPTS.USEWOUNDS or spell_name ~= spells['wounds']['name']) and is_dot_ready(spell_id, spell_name) then
                 return dot -- if is_dot_ready returned true then return this dot as the dot we should cast
             end
         end
@@ -781,10 +858,31 @@ local function find_next_dot_to_cast()
 end
 
 local function cycle_dots()
+    --if is_fighting() or (not OPTS.MULTIDOT and should_assist()) then
     if is_fighting() or should_assist() then
         local spell = find_next_dot_to_cast() -- find the first available dot to cast that is missing from the target
         if spell then -- if a dot was found
             cast(spell['name'], true, true) -- then cast the dot
+            if OPTS.MULTIDOT then
+                local assist_target_id = mq.TLO.Target.ID()
+                local dotted_count = 1
+                for i=1,13 do
+                    if mq.TLO.Me.XTarget(i).TargetType() == 'Auto Hater' and mq.TLO.Me.XTarget(i).Type() == 'NPC' then
+                        local xtar_id = mq.TLO.Me.XTarget(i).ID()
+                        local xtar_spawn = mq.TLO.Spawn(xtar_id)
+                        if xtar_id ~= assist_target_id and should_assist(xtar_spawn) then
+                            xtar_spawn.DoTarget()
+                            mq.delay(2000, function() return mq.TLO.Target.ID() == xtar_id and not mq.TLO.Me.SpellInCooldown() end)
+                            if not mq.TLO.Me.SpellReady(spell['name'])() then break end
+                            if not mq.TLO.Target.Mezzed() then
+                                cast(spell['name'], true, true)
+                                dotted_count = dotted_count + 1
+                            end
+                        end
+                    end
+                    if dotted_count >= 5 then break end
+                end
+            end
             return true
         end
     end
@@ -1487,6 +1585,8 @@ local function draw_right_pane_window()
         OPTS.USEFD = draw_check_box('Feign Death', '##dofeign', OPTS.USEFD, 'Use FD AA\'s to reduce aggro')
         OPTS.USEREZ = draw_check_box('Use Rez', '##userez', OPTS.USEREZ, 'Use Convergence AA to rez group members')
         OPTS.USEINSPIRE = draw_check_box('Inspire Ally', '##inspire', OPTS.USEINSPIRE, 'Use Inspire Ally pet buff')
+        OPTS.USEWOUNDS = draw_check_box('Use Wounds', '##usewounds', OPTS.USEWOUNDS, 'Use wounds DoT')
+        OPTS.MULTIDOT = draw_check_box('Multi DoT', '##multidot', OPTS.MULTIDOT, 'DoT all mobs')
     end
     ImGui.EndChild()
 end
@@ -1705,6 +1805,7 @@ while true do
         if mq.TLO.Cursor() then
             mq.cmd('/autoinventory')
         end
+        --prune_dot_targets()
         -- ensure correct spells are loaded based on selected spell set
         -- currently only checks at startup or when selection changes
         check_spell_set()
@@ -1713,7 +1814,11 @@ while true do
         -- check whether we need to go chasing after the chase target
         check_chase()
         -- check we have the correct target to attack
-        check_target()
+        --if OPTS.MULTIDOT then
+        --    check_target_multi()
+        --else
+            check_target()
+        --end
         -- if we should be assisting but aren't in los, try to be?
         check_los()
         -- begin actual combat stuff
