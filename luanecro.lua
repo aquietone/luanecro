@@ -165,7 +165,7 @@ end
 local spells = {
     ['wounds']=get_spellid_and_rank('Infected Wounds'),
     ['fireshadow']=get_spellid_and_rank('Scalding Shadow'),
-    ['combodis']=get_spellid_and_rank('Danvid\'s Grip of Decay'),
+    ['combodis']=get_spellid_and_rank('Fleshrot\'s Grip of Decay'),
     ['pyreshort']=get_spellid_and_rank('Pyre of Va Xakra'),
     ['pyrelong']=get_spellid_and_rank('Pyre of the Neglected'),
     ['venom']=get_spellid_and_rank('Hemorrhagic Venom'),
@@ -176,7 +176,7 @@ local spells = {
     ['ignite']=get_spellid_and_rank('Ignite Cognition'),
     ['scourge']=get_spellid_and_rank('Scourge of Destiny'),
     ['corruption']=get_spellid_and_rank('Decomposition'),
-    ['alliance']=get_spellid_and_rank('Malevolent Coalition'),
+    ['alliance']=get_spellid_and_rank('Malevolent Conjunction'),
     ['synergy']=get_spellid_and_rank('Proclamation for Blood'),
     ['composite']=get_spellid_and_rank('Composite Paroxysm'),
     ['decay']=get_spellid_and_rank('Fleshrot\'s Decay'),
@@ -187,7 +187,7 @@ local spells = {
     ['swarm']=get_spellid_and_rank('Call Skeleton Mass'),
     ['venin']=get_spellid_and_rank('Embalming Venin'),
     ['lich']=get_spellid_and_rank('Lunaside'),
-    ['flesh']=get_spellid_and_rank('Flesh to Venom'),
+    ['flesh']=get_spellid_and_rank('Flesh to Toxin'),
     ['pet']=get_spellid_and_rank('Unrelenting Assassin'),
     ['pethaste']=get_spellid_and_rank('Sigil of Undeath'),
     ['shield']=get_spellid_and_rank('Shield of Inevitability'),
@@ -206,12 +206,11 @@ table.insert(standard, spells['composite'])
 table.insert(standard, spells['pyreshort'])
 table.insert(standard, spells['venom'])
 table.insert(standard, spells['magic'])
-table.insert(standard, spells['decay'])
+table.insert(standard, spells['combodis'])
 table.insert(standard, spells['haze'])
 table.insert(standard, spells['grasp'])
 table.insert(standard, spells['fireshadow'])
 table.insert(standard, spells['leech'])
-table.insert(standard, spells['grip'])
 table.insert(standard, spells['pyrelong'])
 table.insert(standard, spells['ignite'])
 table.insert(standard, spells['scourge'])
@@ -223,12 +222,11 @@ table.insert(short, spells['composite'])
 table.insert(short, spells['pyreshort'])
 table.insert(short, spells['venom'])
 table.insert(short, spells['magic'])
-table.insert(short, spells['decay'])
+table.insert(short, spells['combodis'])
 table.insert(short, spells['haze'])
 table.insert(short, spells['grasp'])
 table.insert(short, spells['fireshadow'])
 table.insert(short, spells['leech'])
-table.insert(short, spells['grip'])
 table.insert(short, spells['pyrelong'])
 table.insert(short, spells['ignite'])
 
@@ -850,12 +848,11 @@ local function find_next_dot_to_cast()
         for _,dot in ipairs(dots[OPTS.SPELLSET]) do -- iterates over the dots array. ipairs(dots) returns 2 values, an index and its value in the array. we don't care about the index, we just want the dot
             local spell_id = dot['id']
             local spell_name = dot['name']
-            -- ToL has no combo disease dot spell, so the 2 disease dots are just in the normal rotation now.
-            -- if spell_id == spells['combodis']['id'] then
-            --     if (not is_target_dotted_with(spells['decay']['id'], spells['decay']['name']) or not is_target_dotted_with(spells['grip']['id'], spells['grip']['name'])) and mq.TLO.Me.SpellReady(spells['combodis']['name'])() then
-            --         return dot
-            --     end
-            -- else
+            if spell_id == spells['combodis']['id'] then
+                if (not is_target_dotted_with(spells['decay']['id'], spells['decay']['name']) or not is_target_dotted_with(spells['grip']['id'], spells['grip']['name'])) and mq.TLO.Me.SpellReady(spells['combodis']['name'])() then
+                    return dot
+                end
+            end
             if (OPTS.USEWOUNDS or spell_name ~= spells['wounds']['name']) and is_dot_ready(spell_id, spell_name) then
                 return dot -- if is_dot_ready returned true then return this dot as the dot we should cast
             end
@@ -1378,6 +1375,7 @@ local function should_swap_dots()
         swap_spell(spells['wounds']['name'], swap_gem or 10)
     end
 
+    --[[
     local decayDuration = mq.TLO.Target.MyBuffDuration(spells['decay']['name'])()
     local gripDuration = mq.TLO.Target.MyBuffDuration(spells['grip']['name'])()
     if mq.TLO.Me.Gem(spells['decay']['name'])() then
@@ -1396,6 +1394,7 @@ local function should_swap_dots()
         -- maybe we got interrupted or something and none of these are mem'd anymore? just memorize decay again
         swap_spell(spells['decay']['name'], swap_gem_dis or 11)
     end
+    ]]
 end
 
 local check_spell_timer = 0
@@ -1410,8 +1409,7 @@ local function check_spell_set()
             if mq.TLO.Me.Gem(5)() ~= spells['haze']['name'] then swap_spell(spells['haze']['name'], 5) end
             if mq.TLO.Me.Gem(6)() ~= spells['grasp']['name'] then swap_spell(spells['grasp']['name'], 6) end
             if mq.TLO.Me.Gem(7)() ~= spells['leech']['name'] then swap_spell(spells['leech']['name'], 7) end
-            --if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(spells['wounds']['name'], 10) end
-            if mq.TLO.Me.Gem(11)() ~= spells['decay']['name'] then swap_spell(spells['decay']['name'], 11) end
+            if mq.TLO.Me.Gem(11)() ~= spells['combodis']['name'] then swap_spell(spells['combodis']['name'], 11) end
             if mq.TLO.Me.Gem(13)() ~= spells['synergy']['name'] then swap_spell(spells['synergy']['name'], 13) end
             SPELLSET_LOADED = OPTS.SPELLSET
         elseif OPTS.SPELLSET == 'short' then
@@ -1422,87 +1420,75 @@ local function check_spell_set()
             if mq.TLO.Me.Gem(5)() ~= spells['haze']['name'] then swap_spell(spells['haze']['name'], 5) end
             if mq.TLO.Me.Gem(6)() ~= spells['grasp']['name'] then swap_spell(spells['grasp']['name'], 6) end
             if mq.TLO.Me.Gem(7)() ~= spells['leech']['name'] then swap_spell(spells['leech']['name'], 7) end
-            if mq.TLO.Me.Gem(10)() ~= spells['swarm']['name'] then swap_spell(spells['swarm']['name'], 10) end
-            if mq.TLO.Me.Gem(11)() ~= spells['decay']['name'] then swap_spell(spells['decay']['name'], 11) end
+            if mq.TLO.Me.Gem(11)() ~= spells['combodis']['name'] then swap_spell(spells['combodis']['name'], 11) end
             if mq.TLO.Me.Gem(13)() ~= spells['synergy']['name'] then swap_spell(spells['synergy']['name'], 13) end
             SPELLSET_LOADED = OPTS.SPELLSET
         end
         check_spell_timer = os.time(os.date("!*t"))
         swap_gem = mq.TLO.Me.Gem(spells['wounds']['name'])() or mq.TLO.Me.Gem(spells['fireshadow']['name'])() or mq.TLO.Me.Gem(spells['pyrelong']['name'])() or 10
-        swap_gem_dis = mq.TLO.Me.Gem(spells['decay']['name'])() or mq.TLO.Me.Gem(spells['grip']['name'])() or 11
     end
+
     if OPTS.SPELLSET == 'standard' then
-        if OPTS.USEMANATAP and OPTS.USEALLIANCE and OPTS.USEBUFFSHIELD then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['shield']['name'] then swap_spell(spells['shield']['name'], 12) end
-        elseif OPTS.USEMANATAP and OPTS.USEALLIANCE and not OPTS.USEBUFFSHIELD then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 12) end
-        elseif OPTS.USEMANATAP and not OPTS.USEALLIANCE and not OPTS.USEBUFFSHIELD then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 12) end
-        elseif OPTS.USEMANATAP and not OPTS.USEALLIANCE and OPTS.USEBUFFSHIELD then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['shield']['name'] then swap_spell(spells['shield']['name'], 12) end
-        elseif not OPTS.USEMANATAP and not OPTS.USEALLIANCE and not OPTS.USEBUFFSHIELD then
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['corruption']['name'] then swap_spell(spells['corruption']['name'], 12) end
-        elseif not OPTS.USEMANATAP and not OPTS.USEALLIANCE and OPTS.USEBUFFSHIELD then
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['shield']['name'] then swap_spell(spells['shield']['name'], 12) end
-        elseif not OPTS.USEMANATAP and OPTS.USEALLIANCE and OPTS.USEBUFFSHIELD then
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['shield']['name'] then swap_spell(spells['shield']['name'], 12) end
-        elseif not OPTS.USEMANATAP and OPTS.USEALLIANCE and not OPTS.USEBUFFSHIELD then
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 12) end
-        end
-        if not OPTS.USEWOUNDS then
-            if mq.TLO.Me.Gem(10)() ~= spells['pyrelong']['name'] then swap_spell(spells['pyrelong']['name'], 10) end
+        if OPTS.USEMANATAP then
+            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(pells['manatap']['name'], 8) end
         else
-            if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(spells['wounds']['name'], 10) end
+            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 8) end
         end
-    elseif OPTS.SPELLSET == 'short' then
-        if OPTS.USEMANATAP and OPTS.USEALLIANCE and OPTS.USEINSPIRE then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['inspire']['name'] then swap_spell(spells['inspire']['name'], 12) end
-        elseif OPTS.USEMANATAP and OPTS.USEALLIANCE and not OPTS.USEINSPIRE then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['venin']['name'] then swap_spell(spells['venin']['name'], 12) end
-        elseif OPTS.USEMANATAP and not OPTS.USEALLIANCE and not OPTS.USEINSPIRE then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['venin']['name'] then swap_spell(spells['venin']['name'], 12) end
-        elseif OPTS.USEMANATAP and not OPTS.USEALLIANCE and OPTS.USEINSPIRE then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['inspire']['name'] then swap_spell(spells['inspire']['name'], 12) end
-        elseif not OPTS.USEMANATAP and not OPTS.USEALLIANCE and not OPTS.USEINSPIRE then
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['venin']['name'] then swap_spell(spells['venin']['name'], 12) end
-        elseif not OPTS.USEMANATAP and not OPTS.USEALLIANCE and OPTS.USEINSPIRE then
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['inspire']['name'] then swap_spell(spells['inspire']['name'], 12) end
-        elseif not OPTS.USEMANATAP and OPTS.USEALLIANCE and OPTS.USEINSPIRE then
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['inspire']['name'] then swap_spell(spells['inspire']['name'], 12) end
-        elseif not OPTS.USEMANATAP and OPTS.USEALLIANCE and not OPTS.USEINSPIRE then
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
-            if mq.TLO.Me.Gem(12)() ~= spells['venin']['name'] then swap_spell(spells['venin']['name'], 12) end
+        if OPTS.USEALLIANCE then
+            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(pells['alliance']['name'], 9) end
+        else
+            if OPTS.USEMANATAP then
+                if mq.TLO.Me.Gem(9)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 9) end
+            else
+                if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(pells['scourge']['name'], 9) end
+            end
+        end
+        if OPTS.USEBUFFSHIELD then
+            if mq.TLO.Me.Gem(12)() ~= spells['shield']['name'] then swap_spell(pells['shield']['name'], 12) end
+        else
+            if OPTS.USEMANATAP and OPTS.USEALLIANCE then
+                if mq.TLO.Me.Gem(12)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 12) end
+            elseif OPTS.USEMANATAP or OPTS.USEALLIANCE then
+                if mq.TLO.Me.Gem(12)() ~= spells['scourge']['name'] then swap_spell(pells['scourge']['name'], 12) end
+            else
+                if mq.TLO.Me.Gem(12)() ~= spells['corruption']['name'] then swap_spell(pells['corruption']['name'], 12) end
+            end
+        end
+        if not class.OPTS.USEWOUNDS then
+            if mq.TLO.Me.Gem(10)() ~= spells['pyrelong']['name'] then swap_spell(pells['pyrelong']['name'], 10) end
+        else
+            if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(pells['wounds']['name'], 10) end
+        end
+    elseif PTS.SPELLSET == 'short' then
+        if OPTS.USEMANATAP then
+            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(pells['manatap']['name'], 8) end
+        else
+            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 8) end
+        end
+        if OPTS.USEALLIANCE then
+            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(pells['alliance']['name'], 9) end
+        else
+            if OPTS.USEMANATAP then
+                if mq.TLO.Me.Gem(9)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 9) end
+            else
+                if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(pells['scourge']['name'], 9) end
+            end
+        end
+        if OPTS.USEINSPIRE then
+            if mq.TLO.Me.Gem(12)() ~= spells['inspire']['name'] then swap_spell(pells['inspire']['name'], 12) end
+        else
+            if OPTS.USEMANATAP and OPTS.USEALLIANCE then
+                if mq.TLO.Me.Gem(12)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 12) end
+            elseif OPTS.USEMANATAP or OPTS.USEALLIANCE then
+                if mq.TLO.Me.Gem(12)() ~= spells['scourge']['name'] then swap_spell(pells['scourge']['name'], 12) end
+            else
+                if mq.TLO.Me.Gem(12)() ~= spells['venin']['name'] then swap_spell(pells['venin']['name'], 12) end
+            end
+        end
+        if not class.OPTS.USEWOUNDS then
+            if mq.TLO.Me.Gem(10)() ~= spells['swarm']['name'] then swap_spell(pells['swarm']['name'], 10) end
+        else
+            if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(pells['wounds']['name'], 10) end
         end
     end
 end
@@ -1842,7 +1828,6 @@ mq.imgui.init('Necro Bot 1.0', necrobot_ui)
 
 load_settings()
 
-mq.TLO.Lua.Turbo(500)
 mq.cmd('/plugin melee unload noauto')
 get_necro_count()
 
