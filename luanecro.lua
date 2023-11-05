@@ -149,11 +149,11 @@ local I_AM_DEAD = false
 local DOT_TARGETS = {}
 
 local LOG_PREFIX = '\a-t[\ax\ayNecroBot\ax\a-t]\ax '
-local function printf(...)
-    print(LOG_PREFIX..string.format(...))
+local function info(text, ...)
+    printf(LOG_PREFIX..text, ...)
 end
-local function debug(...)
-    if DEBUG then printf(...) end
+local function debug(text, ...)
+    if DEBUG then printf(LOG_PREFIX..text, ...) end
 end
 
 local function get_spellid_and_rank(spell_name)
@@ -196,7 +196,7 @@ local spells = {
     ['inspire']=get_spellid_and_rank('Inspire Ally'),
 }
 for _,spell in pairs(spells) do
-    printf('%s (%s)', spell['name'], spell['id'])
+    info('%s (%s)', spell['name'], spell['id'])
 end
 
 -- entries in the dots table are pairs of {spell id, spell name} in priority order
@@ -627,7 +627,7 @@ local function check_camp()
     if am_i_dead() then return end
     if is_fighting() or not CAMP then return end
     if mq.TLO.Zone.ID() ~= CAMP.ZoneID then
-        printf('Clearing camp as we have zoned.')
+        info('Clearing camp as we have zoned.')
         CAMP = nil
         return
     end
@@ -701,7 +701,7 @@ local function check_target()
         if mq.TLO.Target.ID() ~= assist_target.ID() and should_assist(assist_target) then
             assist_target.DoTarget()
             mq.delay(5)
-            printf('Assisting on >>> \ay%s\ax <<<', mq.TLO.Target.CleanName())
+            info('Assisting on >>> \ay%s\ax <<<', mq.TLO.Target.CleanName())
         end
     end
 end
@@ -723,13 +723,13 @@ local function check_target_multi()
                 if xtar_spawn and xtar_hp and xtar_hp <= OPTS.AUTOASSISTAT then
                     if DOT_TARGETS[xtar_id] then
                         -- this xtarget is already being tracked
-                        if DOT_TARGETS[xtar_id].mezzed and os.difftime(os.time(os.date("!*t")), DOT_TARGETS[xtar_id].mezzed) > 10 then
+                        if DOT_TARGETS[xtar_id].mezzed and os.difftime(os.time(), DOT_TARGETS[xtar_id].mezzed) > 10 then
                             -- this xtarget is mezzed, so check timer to see if we should re-check it
                             mq.cmdf('/mqtar %s', xtar_id)
                             mq.delay(500, function() return mq.TLO.Target.ID() == xtar_id end)
                             if mq.TLO.Target.Mezzed() then
                                 -- target still mezzed, reset timer
-                                DOT_TARGETS[xtar_id].mezzed = os.time(os.date("!*t"))
+                                DOT_TARGETS[xtar_id].mezzed = os.time()
                             else
                                 -- targets no longer mezzed, maybe can dps it now
                                 DOT_TARGETS[xtar_id].mezzed = nil
@@ -751,7 +751,7 @@ local function check_target_multi()
                         if should_assist(target) then
                             DOT_TARGETS[xtar_id] = {dots=0}
                             if target.Mezzed() then
-                                DOT_TARGETS[xtar_id].mezzed = os.time(os.date("!*t"))
+                                DOT_TARGETS[xtar_id].mezzed = os.time()
                             else
                                 -- acquired a new xtarget we can dot
                                 return
@@ -779,7 +779,7 @@ end
 
 local function cast(spell_name, requires_target, requires_los)
     if not in_control() or (requires_los and not mq.TLO.Target.LineOfSight()) then return end
-    printf('Casting \ar%s\ax', spell_name)
+    info('Casting \ar%s\ax', spell_name)
     mq.cmdf('/cast "%s"', spell_name)
     mq.delay(10)
     if not mq.TLO.Me.Casting() then mq.cmdf('/cast %s', spell_name) end
@@ -871,7 +871,7 @@ local function use_item(item)
     if item() and item.Clicky.Spell() and item.Timer() == '0' then
         if item.Clicky.Spell.TargetType() == 'Single' and not mq.TLO.Target() then return end
         if can_cast_weave() then
-            printf('use_item: \ax\ar%s\ax', item)
+            info('use_item: \ax\ar%s\ax', item)
             mq.cmdf('/useitem "%s"', item)
         end
         mq.delay(300+item.CastTime()) -- wait for cast time + some buffer so we don't skip over stuff
@@ -884,7 +884,7 @@ local function use_aa(aa, number)
         if mq.TLO.Me.AltAbility(aa).Spell.TargetType() == 'Single' and not mq.TLO.Target() then return end
         if mq.TLO.Me.AltAbility(aa).Spell.TargetType() == 'Pet' and mq.TLO.Pet.ID() == 0 then return end
         if can_cast_weave() then
-            printf('use_aa: \ax\ar%s\ax', aa)
+            info('use_aa: \ax\ar%s\ax', aa)
             mq.cmdf('/alt activate %d', number)
         end
         mq.delay(300+mq.TLO.Me.AltAbility(aa).Spell.CastTime()) -- wait for cast time + some buffer so we don't skip over stuff
@@ -954,7 +954,7 @@ local function try_debuff_target()
             end
 
             if isScentAAReady and not isDebuffedAlready then
-                printf('use_aa: \ax\arScent of Thule\ax')
+                info('use_aa: \ax\arScent of Thule\ax')
                 mq.cmd('/alt activate 751')
                 mq.delay(10)
             end
@@ -970,10 +970,11 @@ end
 local send_pet_timer = 0
 local function send_pet()
     if not mq.TLO.Pet() then return end
-    if os.difftime(os.time(os.date("!*t")), send_pet_timer) > 1 and (is_fighting() or should_assist()) then
+    if os.difftime(os.time(), send_pet_timer) > 1 and (is_fighting() or should_assist()) then
         if mq.TLO.Pet.Target.ID() ~= mq.TLO.Target.ID() then
-            mq.cmd('/multiline ; /pet attack ; /pet swarm ;')
-            send_pet_timer = os.time(os.date("!*t"))
+            mq.cmd('/pet attack')
+	    mq.cmd('/pet swarm')
+            send_pet_timer = os.time()
         end
     end
 end
@@ -990,14 +991,14 @@ local burn_active_timer = 0
 local burn_active = false
 local function is_burn_condition_met()
     -- activating a burn condition is good for 60 seconds, don't do check again if 60 seconds hasn't passed yet and burn is active.
-    if os.difftime(os.time(os.date("!*t")), burn_active_timer) < 30 and burn_active then
+    if os.difftime(os.time(), burn_active_timer) < 30 and burn_active then
         return true
     else
         burn_active = false
     end
     if BURN_NOW then
-        printf('\arActivating Burns (on demand)\ax')
-        burn_active_timer = os.time(os.date("!*t"))
+        info('\arActivating Burns (on demand)\ax')
+        burn_active_timer = os.time()
         burn_active = true
         BURN_NOW = false
         return true
@@ -1012,23 +1013,23 @@ local function is_burn_condition_met()
                 return true
             end
         elseif OPTS.BURNALLNAMED and mq.TLO.Target.Named() then
-            printf('\arActivating Burns (named)\ax')
-            burn_active_timer = os.time(os.date("!*t"))
+            info('\arActivating Burns (named)\ax')
+            burn_active_timer = os.time()
             burn_active = true
             return true
         elseif OPTS.BURNPROC and is_target_dotted_with(spells['proliferation']['id'], spells['proliferation']['name']) then
-            printf('\arActivating Burns (proliferation proc)\ax')
-            burn_active_timer = os.time(os.date("!*t"))
+            info('\arActivating Burns (proliferation proc)\ax')
+            burn_active_timer = os.time()
             burn_active = true
             return true
         elseif mq.TLO.SpawnCount(string.format('xtarhater radius %d zradius 50', OPTS.CAMPRADIUS))() >= OPTS.BURNCOUNT then
-            printf('\arActivating Burns (mob count > %d)\ax', OPTS.BURNCOUNT)
-            burn_active_timer = os.time(os.date("!*t"))
+            info('\arActivating Burns (mob count > %d)\ax', OPTS.BURNCOUNT)
+            burn_active_timer = os.time()
             burn_active = true
             return true
         elseif OPTS.BURNPCT ~= 0 and mq.TLO.Target.PctHPs() < OPTS.BURNPCT then
-            printf('\arActivating Burns (percent HP)\ax')
-            burn_active_timer = os.time(os.date("!*t"))
+            info('\arActivating Burns (percent HP)\ax')
+            burn_active_timer = os.time()
             burn_active = true
             return true
         end
@@ -1117,7 +1118,7 @@ local function try_burn()
 end
 
 local function pre_pop_burns()
-    printf('Pre-burn')
+    info('Pre-burn')
     --[[
     |===========================================================================================
     |Item Burn
@@ -1193,14 +1194,14 @@ end
 local check_aggro_timer = 0
 local function check_aggro()
     if OPTS.USEFD and is_fighting() and mq.TLO.Target() then
-        if mq.TLO.Me.TargetOfTarget.ID() == mq.TLO.Me.ID() or os.difftime(os.time(os.date("!*t")), check_aggro_timer) > 10 then
+        if mq.TLO.Me.TargetOfTarget.ID() == mq.TLO.Me.ID() or os.difftime(os.time(), check_aggro_timer) > 10 then
             if mq.TLO.Me.PctAggro() >= 90 then
                 if mq.TLO.Me.PctHPs() < 40 and mq.TLO.Me.AltAbilityReady('Dying Grasp')() then
                     use_aa(dyinggrasp['name'], dyinggrasp['id'])
                 end
                 use_aa(deathseffigy['name'], deathseffigy['id'])
                 if mq.TLO.Me.Feigning() then
-                    check_aggro_timer = os.time(os.date("!*t"))
+                    check_aggro_timer = os.time()
                     mq.delay(500)
                     if safe_to_stand() then
                         mq.TLO.Me.Sit() -- Use a sit TLO to stand up, what wizardry is this?
@@ -1210,7 +1211,7 @@ local function check_aggro()
             elseif mq.TLO.Me.PctAggro() >= 70 then
                 use_aa(deathpeace['name'], deathpeace['id'])
                 if mq.TLO.Me.Feigning() then
-                    check_aggro_timer = os.time(os.date("!*t"))
+                    check_aggro_timer = os.time()
                     mq.delay(500)
                     if safe_to_stand() then
                         mq.TLO.Me.Sit() -- Use a sit TLO to stand up, what wizardry is this?
@@ -1225,21 +1226,21 @@ end
 local rez_timer = 0
 local function check_rez()
     if not OPTS.USEREZ or am_i_dead() then return end
-    if os.difftime(os.time(os.date("!*t")), rez_timer) < 5 then return end
+    if os.difftime(os.time(), rez_timer) < 5 then return end
     if not mq.TLO.Me.AltAbilityReady(convergence['name'])() then return end
     if mq.TLO.FindItemCount('=Essence Emerald')() == 0 then return end
     if mq.TLO.SpawnCount('pccorpse group healer radius 100')() > 0 then
         mq.TLO.Spawn('pccorpse group healer radius 100').DoTarget()
         mq.cmd('/corpse')
         use_aa(convergence['name'], convergence['id'])
-        rez_timer = os.time(os.date("!*t"))
+        rez_timer = os.time()
         return
     end
     if mq.TLO.SpawnCount('pccorpse raid healer radius 100')() > 0 then
         mq.TLO.Spawn('pccorpse raid healer radius 100').DoTarget()
         mq.cmd('/corpse')
         use_aa(convergence['name'], convergence['id'])
-        rez_timer = os.time(os.date("!*t"))
+        rez_timer = os.time()
         return
     end
     if mq.TLO.Group.MainTank() and mq.TLO.Group.MainTank.Dead() then
@@ -1249,7 +1250,7 @@ local function check_rez()
         if corpse_x and corpse_y and check_distance(mq.TLO.Me.X(), mq.TLO.Me.Y(), corpse_x, corpse_y) > 100 then return end
         mq.cmd('/corpse')
         use_aa(convergence['name'], convergence['id'])
-        rez_timer = os.time(os.date("!*t"))
+        rez_timer = os.time()
         return
     end
     for i=1,5 do
@@ -1260,7 +1261,7 @@ local function check_rez()
             if corpse_x and corpse_y and check_distance(mq.TLO.Me.X(), mq.TLO.Me.Y(), corpse_x, corpse_y) < 100 then
                 mq.cmd('/corpse')
                 use_aa(convergence['name'], convergence['id'])
-                rez_timer = os.time(os.date("!*t"))
+                rez_timer = os.time()
                 return
             end
         end
@@ -1400,7 +1401,7 @@ end
 local check_spell_timer = 0
 local function check_spell_set()
     if is_fighting() or mq.TLO.Me.Moving() or am_i_dead() then return end
-    if SPELLSET_LOADED ~= OPTS.SPELLSET or os.difftime(os.time(os.date("!*t")), check_spell_timer) > 30 then
+    if SPELLSET_LOADED ~= OPTS.SPELLSET or os.difftime(os.time(), check_spell_timer) > 30 then
         if OPTS.SPELLSET == 'standard' then
             if mq.TLO.Me.Gem(1)() ~= 'Composite Paroxysm' then swap_spell(spells['composite']['name'], 1) end
             if mq.TLO.Me.Gem(2)() ~= spells['pyreshort']['name'] then swap_spell(spells['pyreshort']['name'], 2) end
@@ -1424,71 +1425,71 @@ local function check_spell_set()
             if mq.TLO.Me.Gem(13)() ~= spells['synergy']['name'] then swap_spell(spells['synergy']['name'], 13) end
             SPELLSET_LOADED = OPTS.SPELLSET
         end
-        check_spell_timer = os.time(os.date("!*t"))
+        check_spell_timer = os.time()
         swap_gem = mq.TLO.Me.Gem(spells['wounds']['name'])() or mq.TLO.Me.Gem(spells['fireshadow']['name'])() or mq.TLO.Me.Gem(spells['pyrelong']['name'])() or 10
     end
 
     if OPTS.SPELLSET == 'standard' then
         if OPTS.USEMANATAP then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(pells['manatap']['name'], 8) end
+            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
         else
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 8) end
+            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
         end
         if OPTS.USEALLIANCE then
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(pells['alliance']['name'], 9) end
+            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
         else
             if OPTS.USEMANATAP then
-                if mq.TLO.Me.Gem(9)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 9) end
+                if mq.TLO.Me.Gem(9)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 9) end
             else
-                if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(pells['scourge']['name'], 9) end
+                if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 9) end
             end
         end
         if OPTS.USEBUFFSHIELD then
-            if mq.TLO.Me.Gem(12)() ~= spells['shield']['name'] then swap_spell(pells['shield']['name'], 12) end
+            if mq.TLO.Me.Gem(12)() ~= spells['shield']['name'] then swap_spell(spells['shield']['name'], 12) end
         else
             if OPTS.USEMANATAP and OPTS.USEALLIANCE then
-                if mq.TLO.Me.Gem(12)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 12) end
+                if mq.TLO.Me.Gem(12)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 12) end
             elseif OPTS.USEMANATAP or OPTS.USEALLIANCE then
-                if mq.TLO.Me.Gem(12)() ~= spells['scourge']['name'] then swap_spell(pells['scourge']['name'], 12) end
+                if mq.TLO.Me.Gem(12)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 12) end
             else
-                if mq.TLO.Me.Gem(12)() ~= spells['corruption']['name'] then swap_spell(pells['corruption']['name'], 12) end
+                if mq.TLO.Me.Gem(12)() ~= spells['corruption']['name'] then swap_spell(spells['corruption']['name'], 12) end
             end
         end
         if not class.OPTS.USEWOUNDS then
-            if mq.TLO.Me.Gem(10)() ~= spells['pyrelong']['name'] then swap_spell(pells['pyrelong']['name'], 10) end
+            if mq.TLO.Me.Gem(10)() ~= spells['pyrelong']['name'] then swap_spell(spells['pyrelong']['name'], 10) end
         else
-            if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(pells['wounds']['name'], 10) end
+            if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(spells['wounds']['name'], 10) end
         end
     elseif PTS.SPELLSET == 'short' then
         if OPTS.USEMANATAP then
-            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(pells['manatap']['name'], 8) end
+            if mq.TLO.Me.Gem(8)() ~= spells['manatap']['name'] then swap_spell(spells['manatap']['name'], 8) end
         else
-            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 8) end
+            if mq.TLO.Me.Gem(8)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 8) end
         end
         if OPTS.USEALLIANCE then
-            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(pells['alliance']['name'], 9) end
+            if mq.TLO.Me.Gem(9)() ~= spells['alliance']['name'] then swap_spell(spells['alliance']['name'], 9) end
         else
             if OPTS.USEMANATAP then
-                if mq.TLO.Me.Gem(9)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 9) end
+                if mq.TLO.Me.Gem(9)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 9) end
             else
-                if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(pells['scourge']['name'], 9) end
+                if mq.TLO.Me.Gem(9)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 9) end
             end
         end
         if OPTS.USEINSPIRE then
-            if mq.TLO.Me.Gem(12)() ~= spells['inspire']['name'] then swap_spell(pells['inspire']['name'], 12) end
+            if mq.TLO.Me.Gem(12)() ~= spells['inspire']['name'] then swap_spell(spells['inspire']['name'], 12) end
         else
             if OPTS.USEMANATAP and OPTS.USEALLIANCE then
-                if mq.TLO.Me.Gem(12)() ~= spells['ignite']['name'] then swap_spell(pells['ignite']['name'], 12) end
+                if mq.TLO.Me.Gem(12)() ~= spells['ignite']['name'] then swap_spell(spells['ignite']['name'], 12) end
             elseif OPTS.USEMANATAP or OPTS.USEALLIANCE then
-                if mq.TLO.Me.Gem(12)() ~= spells['scourge']['name'] then swap_spell(pells['scourge']['name'], 12) end
+                if mq.TLO.Me.Gem(12)() ~= spells['scourge']['name'] then swap_spell(spells['scourge']['name'], 12) end
             else
-                if mq.TLO.Me.Gem(12)() ~= spells['venin']['name'] then swap_spell(pells['venin']['name'], 12) end
+                if mq.TLO.Me.Gem(12)() ~= spells['venin']['name'] then swap_spell(spells['venin']['name'], 12) end
             end
         end
         if not class.OPTS.USEWOUNDS then
-            if mq.TLO.Me.Gem(10)() ~= spells['swarm']['name'] then swap_spell(pells['swarm']['name'], 10) end
+            if mq.TLO.Me.Gem(10)() ~= spells['swarm']['name'] then swap_spell(spells['swarm']['name'], 10) end
         else
-            if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(pells['wounds']['name'], 10) end
+            if mq.TLO.Me.Gem(10)() ~= spells['wounds']['name'] then swap_spell(spells['wounds']['name'], 10) end
         end
     end
 end
@@ -1734,8 +1735,8 @@ end
 -- END UI IMPLEMENTATION
 
 local function show_help()
-    printf('NecroBot 1.0')
-    printf('Commands:\n- /nec burnnow\n- /nec pause on|1|off|0\n- /nec show|hide\n- /nec mode 0|1|2\n- /nec resetcamp\n- /nec prep\n- /nec help')
+    info('NecroBot 1.0')
+    info('Commands:\n- /nec burnnow\n- /nec pause on|1|off|0\n- /nec show|hide\n- /nec mode 0|1|2\n- /nec resetcamp\n- /nec prep\n- /nec help')
 end
 
 local function nec_bind(...)
@@ -1780,35 +1781,35 @@ local function nec_bind(...)
         if args[2] then
             if opt == 'SPELLSET' then
                 if SPELLSETS[new_value] then
-                    printf('Setting %s to: %s', opt, new_value)
+                    info('Setting %s to: %s', opt, new_value)
                     OPTS[opt] = new_value
                 end
             elseif opt == 'ASSIST' then
                 if ASSISTS[new_value] then
-                    printf('Setting %s to: %s', opt, new_value)
+                    info('Setting %s to: %s', opt, new_value)
                     OPTS[opt] = new_value
                 end
             elseif type(OPTS[opt]) == 'boolean' then
                 if args[2] == '0' or args[2] == 'off' then
-                    printf('Setting %s to: false', opt)
+                    info('Setting %s to: false', opt)
                     OPTS[opt] = false
                 elseif args[2] == '1' or args[2] == 'on' then
-                    printf('Setting %s to: true', opt)
+                    info('Setting %s to: true', opt)
                     OPTS[opt] = true
                 end
             elseif type(OPTS[opt]) == 'number' then
                 if tonumber(new_value) then
-                    printf('Setting %s to: %s', opt, tonumber(new_value))
+                    info('Setting %s to: %s', opt, tonumber(new_value))
                     OPTS[opt] = tonumber(new_value)
                 end
             else
-                printf('Unsupported command line option: %s %s', opt, new_value)
+                info('Unsupported command line option: %s %s', opt, new_value)
             end
         else
             if OPTS[opt] ~= nil then
-                printf('%s: %s', opt, OPTS[opt])
+                info('%s: %s', opt, OPTS[opt])
             else
-                printf('Unrecognized option: %s', opt)
+                info('Unrecognized option: %s', opt)
             end
         end
     end
@@ -1817,7 +1818,7 @@ mq.bind('/nec', nec_bind)
 mq.bind('/necro', nec_bind)
 
 local function event_dead()
-    printf('necro down!')
+    info('necro down!')
     I_AM_DEAD = true
 end
 mq.event('event_dead_released', '#*#Returning to Bind Location#*#', event_dead)
@@ -1835,13 +1836,13 @@ local debug_timer = 0
 local nec_count_timer = 0
 -- Main Loop
 while true do
-    if DEBUG and os.difftime(os.time(os.date("!*t")), debug_timer) > 3 then
+    if DEBUG and os.difftime(os.time(), debug_timer) > 3 then
         debug('main loop: PAUSED=%s, Me.Invis=%s', PAUSED, mq.TLO.Me.Invis())
-        debug_timer = os.time(os.date("!*t"))
+        debug_timer = os.time()
     end
-    if OPTS.USEALLIANCE and os.difftime(os.time(os.date("!*t")), nec_count_timer) > 60 then
+    if OPTS.USEALLIANCE and os.difftime(os.time(), nec_count_timer) > 60 then
         get_necro_count()
-        nec_count_timer = os.time(os.date("!*t"))
+        nec_count_timer = os.time()
     end
     -- Process death events
     mq.doevents()
